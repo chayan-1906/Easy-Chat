@@ -1,16 +1,24 @@
+import 'dart:convert';
 import 'dart:ui';
 
 import 'package:auto_size_text/auto_size_text.dart';
+import 'package:easy_chat/custom_ui/own_file_card.dart';
 import 'package:easy_chat/custom_ui/own_message_card.dart';
 import 'package:easy_chat/custom_ui/reply_card.dart';
+import 'package:easy_chat/custom_ui/reply_file_card.dart';
 import 'package:easy_chat/model/chat_model.dart';
 import 'package:easy_chat/model/message_model.dart';
+import 'package:easy_chat/screens/camera_screen.dart';
 import 'package:emoji_picker/emoji_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_icons/flutter_icons.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 import 'package:material_design_icons_flutter/material_design_icons_flutter.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
+
+import 'camera_view_screen.dart';
 
 class IndividualChatScreen extends StatefulWidget {
   final ChatModel chatModel;
@@ -30,6 +38,9 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
   IO.Socket socket;
   bool sendButton = false;
   List<MessageModel> messages = [];
+  ImagePicker _imagePicker = ImagePicker();
+  XFile file;
+  int popTime = 0;
 
   Widget emojiSelect() {
     return EmojiPicker(
@@ -83,16 +94,38 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
                             iconName: 'Camera',
                             onTap: () {
                               print('Camera');
-                              Navigator.of(context).pop();
+                              setState(() {
+                                popTime = 3;
+                              });
+                              // Navigator.of(context).pop();
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (context) =>
+                                      CameraScreen(onImageSend: onImageSend),
+                                ),
+                              );
                             },
                           ),
                           _createIcon(
                             backgroundColor: Color(0xFFEC255A),
                             iconData: MaterialCommunityIcons.image,
                             iconName: 'Gallery',
-                            onTap: () {
+                            onTap: () async {
                               print('Gallery');
-                              Navigator.of(context).pop();
+                              setState(() {
+                                popTime = 2;
+                              });
+                              file = await _imagePicker.pickImage(
+                                  source: ImageSource.gallery);
+                              // Navigator.of(context).pop();
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (context) => CameraViewScreen(
+                                    path: file.path,
+                                    onImageSend: onImageSend,
+                                  ),
+                                ),
+                              );
                             },
                           ),
                         ],
@@ -166,7 +199,7 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
   }
 
   void connect() {
-    socket = IO.io("http://192.168.1.7:5000", <String, dynamic>{
+    socket = IO.io("http://192.168.1.7:5000/", <String, dynamic>{
       "transports": ["websocket"],
       "autoConnect": false,
     });
@@ -176,7 +209,8 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
       print('Connected');
       socket.on("message", (msg) {
         print(msg);
-        setMessage(type: 'destination', message: msg['message']);
+        setMessage(
+            type: 'destination', message: msg['message'], path: msg["path"]);
         _scrollController.animateTo(
           _scrollController.position.maxScrollExtent,
           duration: Duration(milliseconds: 300),
@@ -187,23 +221,53 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
     print(socket.connected);
   }
 
-  void sendMessage({String message, int sourceId, int targetId}) {
-    setMessage(type: 'source', message: message);
+  void sendMessage({String message, int sourceId, int targetId, String path}) {
+    setMessage(type: 'source', message: message, path: path);
     socket.emit("message", {
       "message": message,
       "sourceId": sourceId,
       "targetId": targetId,
+      "path": path,
     });
   }
 
-  void setMessage({String type, String message}) {
+  void setMessage({String type, String message, String path}) {
     MessageModel messageModel = MessageModel(
       type: type,
       message: message,
       time: DateTime.now().toString().substring(10, 16),
+      path: path,
     );
     setState(() {
       messages.add(messageModel);
+    });
+  }
+
+  void onImageSend(String path, String message) async {
+    print('hey there working $message');
+    for (int i = 0; i < popTime; i++) {
+      Navigator.of(context).pop();
+    }
+    setState(() {
+      popTime = 0;
+    });
+    var request = http.MultipartRequest(
+        'POST', Uri.parse('http://192.168.137.1:5000/routes/addimage'));
+    request.files.add(await http.MultipartFile.fromPath('img', path));
+    request.headers.addAll({
+      "Content-type": "multipart/form-data",
+    });
+    http.StreamedResponse response = await request.send();
+    var httpResponse = await http.Response.fromStream(response);
+    var data = json.decode(httpResponse.body);
+    print(data['path']);
+    print(response.statusCode);
+    setMessage(type: 'source', message: message, path: path);
+    socket.emit("message", {
+      "message": message,
+      "sourceId": widget.sourceChat.id,
+      "targetId": widget.chatModel.id,
+      "path": data['path'],
     });
   }
 
@@ -380,19 +444,40 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
                           return Container(height: 70.0);
                         }
                         if (messages[index].type == 'source') {
-                          return OwnMessageCard(
-                            message: messages[index].message,
-                            time: messages[index].time,
-                          );
-                        } else if (messages[index].type == 'destination') {
-                          return ReplyCard(
-                            message: messages[index].message,
-                            time: messages[index].time,
-                          );
+                          if (messages[index].path.length > 0) {
+                            return OwnFileCard(
+                              path: messages[index].path,
+                              message: messages[index].message,
+                              time: messages[index].time,
+                            );
+                          } else {
+                            return OwnMessageCard(
+                              message: messages[index].message,
+                              time: messages[index].time,
+                            );
+                          }
+                        } else {
+                          if (messages[index].path.length > 0) {
+                            return ReplyFileCard(
+                              path: messages[index].path,
+                              message: messages[index].message,
+                              time: messages[index].time,
+                            );
+                          } else {
+                            return ReplyCard(
+                              message: messages[index].message,
+                              time: messages[index].time,
+                            );
+                          }
                         }
-                        return Container();
                       },
                     ),
+                    // child: ListView(
+                    //   children: [
+                    //     OwnFileCard(),
+                    //     ReplyFileCard(),
+                    //   ],
+                    // ),
                   ),
                   Align(
                     alignment: Alignment.bottomCenter,
@@ -449,7 +534,19 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
                                               icon: Icon(Icons.attach_file),
                                             ),
                                             IconButton(
-                                              onPressed: () {},
+                                              onPressed: () {
+                                                setState(() {
+                                                  popTime = 2;
+                                                });
+                                                Navigator.of(context).push(
+                                                  MaterialPageRoute(
+                                                    builder: (context) =>
+                                                        CameraScreen(
+                                                            onImageSend:
+                                                                onImageSend),
+                                                  ),
+                                                );
+                                              },
                                               icon: Icon(MaterialCommunityIcons
                                                   .camera),
                                             ),
@@ -503,6 +600,7 @@ class _IndividualChatScreenState extends State<IndividualChatScreen> {
                                                 .trim(),
                                             sourceId: widget.sourceChat.id,
                                             targetId: widget.chatModel.id,
+                                            path: '',
                                           );
                                           _textEditingController.clear();
                                           setState(() {

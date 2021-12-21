@@ -1,4 +1,5 @@
 import 'package:easy_chat/model/chat_model.dart';
+import 'package:easy_chat/new_screen/call_screen.dart';
 import 'package:easy_chat/pages/camera_page.dart';
 import 'package:easy_chat/pages/chat_page.dart';
 import 'package:easy_chat/pages/status_page.dart';
@@ -110,7 +111,7 @@ class _HomeScreenState extends State<HomeScreen>
             sourceChat: widget.sourceChat,
           ),
           StatusPage(),
-          Text('Calls'),
+          CallScreen(),
         ],
       ),
     );

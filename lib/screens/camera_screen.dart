@@ -8,7 +8,8 @@ import 'package:flutter/material.dart';
 List<CameraDescription> cameras;
 
 class CameraScreen extends StatefulWidget {
-  const CameraScreen({Key key}) : super(key: key);
+  final Function onImageSend;
+  const CameraScreen({Key key, this.onImageSend}) : super(key: key);
 
   @override
   _CameraScreenState createState() => _CameraScreenState();
@@ -28,7 +29,10 @@ class _CameraScreenState extends State<CameraScreen> {
     XFile file = await _cameraController.takePicture();
     Navigator.of(context).push(
       MaterialPageRoute(builder: (context) {
-        return CameraViewScreen(path: file.path);
+        return CameraViewScreen(
+          path: file.path,
+          onImageSend: widget.onImageSend,
+        );
       }),
     );
   }

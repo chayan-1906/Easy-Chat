@@ -1,7 +1,7 @@
 const express = require("express");
 var http = require("http");
-const cors = require("cors");
-const { response } = require("express");
+// const cors = require("cors");
+// const { response } = require("express");
 const app = express();
 const port = process.env.port || 5000;
 var server = http.createServer(app);
@@ -10,6 +10,9 @@ var io = require('socket.io')(server);
 // middleware
 app.use(express.json());
 var clients = {};
+const routes = require("./routes");
+app.use("/routes", routes);
+app.use("/uploads", express.static('uploads'));
 
 io.on("connection", (socket)=>{
     console.log("connected");

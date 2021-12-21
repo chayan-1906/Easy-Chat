@@ -5,7 +5,11 @@ import 'package:flutter_icons/flutter_icons.dart';
 
 class CameraViewScreen extends StatelessWidget {
   final String path;
-  const CameraViewScreen({Key key, this.path}) : super(key: key);
+  final Function onImageSend;
+  const CameraViewScreen({Key key, this.path, this.onImageSend})
+      : super(key: key);
+
+  static TextEditingController _textEditingController = TextEditingController();
 
   @override
   Widget build(BuildContext context) {
@@ -59,6 +63,7 @@ class CameraViewScreen extends StatelessWidget {
                 width: MediaQuery.of(context).size.width,
                 padding: EdgeInsets.symmetric(vertical: 5.0, horizontal: 8.0),
                 child: TextFormField(
+                  controller: _textEditingController,
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 17.0,
@@ -77,14 +82,19 @@ class CameraViewScreen extends StatelessWidget {
                       color: Colors.white,
                       size: 27.0,
                     ),
-                    suffixIcon: CircleAvatar(
-                      radius: 27.0,
-                      child: Icon(
-                        MaterialCommunityIcons.check_circle_outline,
-                        color: Colors.white,
-                        size: 40.0,
+                    suffixIcon: GestureDetector(
+                      onTap: () {
+                        onImageSend(path, _textEditingController.text.trim());
+                      },
+                      child: CircleAvatar(
+                        radius: 27.0,
+                        child: Icon(
+                          MaterialCommunityIcons.check_circle_outline,
+                          color: Colors.white,
+                          size: 40.0,
+                        ),
+                        backgroundColor: Theme.of(context).accentColor,
                       ),
-                      backgroundColor: Theme.of(context).accentColor,
                     ),
                   ),
                 ),
